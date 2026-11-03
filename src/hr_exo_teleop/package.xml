@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>hr_exo_teleop</name>
+  <version>0.1.0</version>
+  <description>HR-UP 7-DOF dual-arm exoskeleton teleoperation: launch integration and parameter hub (MessageBridge/Puppetry + FK adapter + pink IK)</description>
+  <maintainer email="user@todo.todo">HR-EXO-robot</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>robot_fk_adapter</exec_depend>
+  <exec_depend>robot_ik_retargeting</exec_depend>
+  <exec_depend>hr_up_7dof_fixed</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

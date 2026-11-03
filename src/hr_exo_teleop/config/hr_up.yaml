@@ -1,0 +1,48 @@
+# ==============================================================================
+# HR-UP 7-DOF 双臂 遥操作参数中枢
+# -----------------------------------------------------------------------------
+# 说明:
+#   - 本文件是遥操作链路唯一的参数来源(单 一 真 相), launch 文件只负责
+#     组装节点与计算 URDF 路径, 不要在 launch 里散落业务参数。
+#   - 节点名必须与 launch 文件中 Node(name=...) 一致, 参数才会匹配。
+#
+# 模型关节速查 (详见 hr_up_7dof_fixed/urdf/):
+#   右臂: Joint1..Joint7  -> 末端 Link7
+#   左臂: Joint1L..Joint7L -> 末端 Link7L
+#   根连杆: base (base_mount 通过 fixed 关节连接)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# FK 正解节点: /client_robot/joint_states -> /target_robot/{left,right}_ee/state
+# ------------------------------------------------------------------------------
+fk_adapter:
+  ros__parameters:
+    base_frame: "base"          # 位姿参考基准系
+    left_ee_frame: "Link7L"     # 左臂末端 link
+    right_ee_frame: "Link7"     # 右臂末端 link
+
+# ------------------------------------------------------------------------------
+# pink IK 逆解节点: /target_robot/{left,right}_ee/target
+#                 -> /target_robot/joint_commands
+# 注意: target_link_names 顺序固定为 [右臂末端, 左臂末端] (ik_node 内部约定)
+# ------------------------------------------------------------------------------
+ik_retargeting:
+  ros__parameters:
+    root_link_name: "base"
+    ref_link_name: "base"       # 必须与 fk_adapter.base_frame 一致
+    target_link_names: ["Link7", "Link7L"]
+    max_dof: 7                  # 从末端向上追溯的关节自由度数
+    # 拟人化初始姿态(PostureTask 引导解的分支)。
+    # SolidWorks 导出模型关节轴向需实测确认后再填, 留空 = 全零中立位。
+    # 示例:
+    #   preferred_joints: ["Joint4", "Joint4L"]
+    #   preferred_angles: [0.5, -0.5]
+    preferred_joints: []
+    preferred_angles: []
+
+# ------------------------------------------------------------------------------
+# 仿真假体驱动(仅 teleop_sim 启动): 发布 /client_robot/joint_states
+# ------------------------------------------------------------------------------
+dummy_driver:
+  ros__parameters:
+    publish_frequency: 500.0
