@@ -108,8 +108,13 @@ class UniversalHumanIK(Node):
         self.declare_parameter('target_link_names', ['right_wrist_roll_link', 'left_wrist_roll_link'])
         self.declare_parameter('max_dof', 7)  # 最大追溯的自由度数，默认 7
         
-        string_array_desc = ParameterDescriptor(type=ParameterType.PARAMETER_STRING_ARRAY)
-        double_array_desc = ParameterDescriptor(type=ParameterType.PARAMETER_DOUBLE_ARRAY)
+        # dynamic_typing=True: 允许 launch/yaml 不提供这两个参数(HR-UP 拟人化角度
+        # 在真机实测前刻意留空), 否则 declare_parameter(value=None) 会抛
+        # ParameterUninitializedException 导致节点起不来
+        string_array_desc = ParameterDescriptor(
+            type=ParameterType.PARAMETER_STRING_ARRAY, dynamic_typing=True)
+        double_array_desc = ParameterDescriptor(
+            type=ParameterType.PARAMETER_DOUBLE_ARRAY, dynamic_typing=True)
         self.declare_parameter('preferred_joints', value=None, descriptor=string_array_desc)
         self.declare_parameter('preferred_angles', value=None, descriptor=double_array_desc)
 
@@ -165,6 +170,16 @@ class UniversalHumanIK(Node):
         
         # 日志：输出坐标系配置，帮助调试
         self.get_logger().info(f"IK Node坐标系配置：root_link='{self.root_link}', ref_link='{self.ref_link}'")
+        # 真机调试: 启动配置一次性打全, 现场核对配置是否与预期一致
+        # (此处 joint_names 尚未赋值, 关节数取 base_model.names 去掉 universe)
+        self.get_logger().info(
+            "IK 配置速查: urdf='{}', 关节数={} (nq={}), root_link='{}', ref_link='{}', "
+            "right_ee='{}', left_ee='{}', max_dof={}, 求解频率={:.0f}Hz, "
+            "preferred_joints={} 共{}个".format(
+                urdf_path, len(base_model.names) - 1, base_model.nq,
+                self.root_link, self.ref_link,
+                self.ee_frames['right'], self.ee_frames['left'], self.max_dof,
+                self.ik_freq, list(pref_joints), len(pref_joints)))
         # 存储 ref_id 供 control_loop 使用
         self.ref_id_map = {'left': base_model.getFrameId(self.ref_link), 
                            'right': base_model.getFrameId(self.ref_link)}
@@ -226,6 +241,16 @@ class UniversalHumanIK(Node):
         self.pub_cmd = self.create_publisher(JointState, "/target_robot/joint_commands", 1)
         
         self.timer = self.create_timer(self.dt, self.control_loop)
+
+        # 9. 运行统计（真机调试用，仅计数/计时，不影响控制流）
+        # 注意: _stats_t0 用与 control_loop 相同的 ROS 时钟, 避免 sim time 下混用墙钟
+        self._stats_t0 = self.get_clock().now().nanoseconds * 1e-9
+        self._stats_interval = 5.0   # 统计心跳周期(秒)
+        self._cmd_count = 0          # 周期内发布的 joint_commands 帧数
+        self._overrun_count = 0      # 周期内循环超时(dt > max_allowed_dt)次数
+        self._solve_count = 0        # 周期内 solve_ik 调用次数
+        self._solve_time_total = 0.0
+        self._solve_time_max = 0.0
 
     def state_cb(self, msg):
         # [改进1: 严格的初始化检查]
@@ -290,7 +315,25 @@ class UniversalHumanIK(Node):
             return
         
         current_time = self.get_clock().now().nanoseconds * 1e-9
-        
+
+        # 统计心跳：每 5s 打印一次求解/发布健康度。
+        # 心跳停了 = 没进到这里 = 先查 joint_states 是否断流/节点是否被系统挂起
+        if current_time - self._stats_t0 >= self._stats_interval:
+            elapsed = current_time - self._stats_t0
+            avg_ms = (self._solve_time_total / self._solve_count * 1e3) if self._solve_count else 0.0
+            self.get_logger().info(
+                "统计[{:.0f}s]: 指令发布≈{:.1f}Hz(共{}帧), 求解{}次 平均{:.2f}ms 最差{:.2f}ms "
+                "(周期{:.1f}ms), 循环超时{}次".format(
+                    elapsed, self._cmd_count / elapsed, self._cmd_count,
+                    self._solve_count, avg_ms, self._solve_time_max * 1e3,
+                    self.dt * 1e3, self._overrun_count))
+            self._stats_t0 = current_time
+            self._cmd_count = 0
+            self._solve_count = 0
+            self._solve_time_total = 0.0
+            self._solve_time_max = 0.0
+            self._overrun_count = 0
+
         if self.last_loop_time is None:
             self.last_loop_time = current_time
             return
@@ -299,6 +342,7 @@ class UniversalHumanIK(Node):
         self.last_loop_time = current_time
         
         if actual_dt > self.max_allowed_dt:
+            self._overrun_count += 1
             self.get_logger().warn(f"Loop skipped, dt={actual_dt*1000:.1f}ms > {self.max_allowed_dt*1000:.1f}ms (system lag)")
             return
         
@@ -336,6 +380,9 @@ class UniversalHumanIK(Node):
                     self.get_logger().info(f"[{side.upper()}] 使能接管，位置同步跳变 {sync_jump:.4f} rad，速度历史已重置")
                 else:
                     self.get_logger().info(f"[{side.upper()}] 使能接管，位置无跳变，速度历史已重置")
+            elif (not self.clutch[side]) and self.prev_clutch[side]:
+                # 真机调试: 断开边沿也要留痕, 与使能边沿配对, 便于对照日志与现场操作
+                self.get_logger().info(f"[{side.upper()}] 离合断开，指令保持不变")
         # ==============================================================================
 
         for side in ['left', 'right']:
@@ -416,7 +463,19 @@ class UniversalHumanIK(Node):
                 self.tasks[side]["ee"].set_target(T_ik_target_world)
                 
                 # 只有在使能时，才运行 IK 并更新速度
+                # 求解耗时留痕: 单次求解超过控制周期是真机卡顿/追赶的头号信号
+                _t0 = time.perf_counter()
                 v_side = solve_ik(self.configs[side], self.tasks[side].values(), actual_dt, solver="osqp", safety_break=False)
+                _solve_dt = time.perf_counter() - _t0
+                self._solve_count += 1
+                self._solve_time_total += _solve_dt
+                if _solve_dt > self._solve_time_max:
+                    self._solve_time_max = _solve_dt
+                if _solve_dt > self.dt:
+                    self.get_logger().warning(
+                        "IK 单次求解 {:.1f}ms 超过控制周期 {:.1f}ms，可能出现掉帧/追赶".format(
+                            _solve_dt * 1e3, self.dt * 1e3),
+                        throttle_duration_sec=5.0)
                 chain_indices = self.get_chain_velocity_indices(self.models[side], self.ee_frames[side], self.max_dof)
                 for idx_v in chain_indices: combined_velocity[idx_v] = v_side[idx_v]
 
@@ -470,6 +529,7 @@ class UniversalHumanIK(Node):
         cmd.position = q_next.tolist()
         cmd.velocity = velocity_limited.tolist()  # 发布 IK 计算的速度（用于 MIT 模式前馈）
         self.pub_cmd.publish(cmd)
+        self._cmd_count += 1
 
     def _find_joint_by_velocity_idx(self, model, idx_v):
         """
