@@ -42,9 +42,17 @@ MessageBridge:
     # Base frame: Used for header.frame_id in incremental control pose messages
     # Affected topics: left_end_increment, right_end_increment, target_robot_left/right_ee_target
     # Must match the base frame name of the target robot
-    base_frame: "base_link"
-    
+    #
+    # HR-UP 适配 (2026-11-05, 依据 src/hr_up_7dof_fixed/urdf/HR-UP-7DOF-3KG-R-B01382-URDF-1029.urdf):
+    #   - URDF 根连杆 base_mount 经 fixed 关节(base_mount_to_base)连接到 base，
+    #     双臂 Joint1/Joint1L 均直接挂在 base 上，臂链参考系是 "base" 而非 "base_link"
+    #   - 必须与 hr_exo_teleop/config/hr_up.yaml 保持三处一致:
+    #     fk_adapter.base_frame == ik_retargeting.ref_link_name == 此处 base_frame == "base"
+    base_frame: "base"
+
     # End-effector frames: Only used for TF broadcasting visualization, does not affect incremental control flow
     # TF tree structure: base_frame -> left_ee_frame / right_ee_frame
+    # 注意: 这两个是"外骨骼侧"末端可视化帧, 保持 exo_ 前缀, 不要改成 Link7/Link7L
+    # (Link7/Link7L 是 HR-UP 机械臂自己的末端 link, 混用会导致 TF 树冲突)
     left_ee_frame: "exo_left_ee_frame"    # Left end-effector frame name (for TF visualization)
     right_ee_frame: "exo_right_ee_frame"  # Right end-effector frame name (for TF visualization)
