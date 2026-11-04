@@ -5,7 +5,7 @@
 
 | 目录 | 内容 | 生成方式 | 真机安装方式 |
 |------|------|----------|--------------|
-| `pip/` | requirements.txt 及全部传递依赖的 wheel + `pin_pink` wheel(--no-deps 单独装) | `pip download --only-binary=:all:` | `install_deps.sh`: 先 `--no-deps` 装 pin_pink，再 `pip install --no-index --find-links=deps/pip -r requirements.txt` |
+| `pip/` | 仓库根目录 `requirements.txt` 全部传递依赖的 wheel + `pin_pink` wheel(--no-deps 单独装)。注意 requirements.txt 本身在仓库根目录，不在本目录 | `pip download --only-binary=:all:` | `install_deps.sh`: 先 `--no-deps` 装 pin_pink，再 `pip install --no-index --find-links=deps/pip -r requirements.txt`(根目录) |
 | `apt/` | ROS 2 Humble 相关 .deb(package.xml 依赖 + **ros-humble-pinocchio 组** + colcon/rosdep/venv 工具) | `apt-get download` | `sudo apt-get install --no-download deps/apt/*.deb` |
 
 日常不需要手动敲上面的命令，直接运行部署脚本:

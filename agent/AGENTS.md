@@ -28,6 +28,7 @@
 
 - 工单规范：`agent/issue-tracker.md`
 - 技术交接：`agent/HANDOVER.md`
+- 问题台账（问题/根因/处置追溯）：`agent/LEDGER.md`
 - 部署门禁：`agent/deployment.md`
 - 领域词汇：`agent/GLOSSARY.md`
 - GitHub 配置：`agent/github/`

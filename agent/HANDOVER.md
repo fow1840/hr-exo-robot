@@ -20,9 +20,9 @@ HR-UP 7-DOF 双臂与 DataMaster 外骨骼的 ROS 2 遥操框架，最终需要�
 ## 代码导航
 
 - `src/hr_up_7dof_fixed/`：HR-UP 双 7-DOF 手臂描述。
-- `src/robot_fk_adapter/`：关节状态到末端位姿。
-- `src/robot_ik_retargeting/`：目标位姿到关节命令。
-- `src/hr_exo_teleop/`：总控 launch 与参数。
+- `src/robot_fk_adapter/`：关节状态到末端位姿（launch：`robot_fk_adapter.launch.py`）。
+- `src/robot_ik_retargeting/`：目标位姿到关节命令（launch：`hr_up_ik_retargeting.launch.py`）。
+- `src/hr_exo_teleop/`：总控 launch 与参数（参数中枢 `config/hr_up.yaml`）。
 - `standalone/`：厂商闭源程序和配置，修改前必须与实机版本核对。
 - `deps/`：x86_64、Python 3.10、ROS 2 Humble 的离线依赖候选集。
 
@@ -31,7 +31,9 @@ HR-UP 7-DOF 双臂与 DataMaster 外骨骼的 ROS 2 遥操框架，最终需要�
 - 目标机 CPU 架构、Ubuntu/ROS/Python 版本及安装方式。
 - 左右臂关节名称、顺序、单位、符号、零位、软/硬限位。
 - 真实状态和命令接口、控制模式、心跳、超时及会话门控。
-- `base`、`Link7`、`Link7L` 的真实坐标系契约。
+- `base`、`Link7`、`Link7L` 的真实坐标系契约。（2026-11-05 已按 donghai 指定的
+  `src/hr_up_7dof_fixed` URDF 定值：base_frame=base、左末端 Link7L、右末端 Link7，
+  三处契约见 `docs/deployment/4：FK_和IK_的配置部署.md` §2；真机 TF 树核对后销号）
 - 急停、使能、离合和唯一命令发布者的责任归属。
 - 无运动、仿真、单臂低速、双臂及中断/恢复验收数据。
 
@@ -44,3 +46,8 @@ HR-UP 7-DOF 双臂与 DataMaster 外骨骼的 ROS 2 遥操框架，最终需要�
 5. donghai 确认的真机验收。
 
 上一级不能代替下一级。
+
+## 问题追溯
+
+部署/调试中遇到的问题、根因与处置记录在 `agent/LEDGER.md`（含 P- 编号条目与销号状态）；
+真机现场日志取证方法见 `docs/deployment/4：FK_和IK_的配置部署.md` §9 与 `scripts/collect_logs.sh`。
