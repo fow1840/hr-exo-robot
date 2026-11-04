@@ -4,7 +4,7 @@
 
 GitHub Issues 是动态工单和进度的唯一状态源。不在聊天、本地计划文件或另一份台账中维护竞争状态。
 
-`HANDOVER.md` 保存相对稳定的架构和交接知识；Issue 保存任务当前状态、证据和验收结论。
+`agent/HANDOVER.md` 保存相对稳定的架构和交接知识；Issue 保存任务当前状态、证据和验收结论。
 
 ## 2. 角色
 
@@ -26,7 +26,7 @@ GitHub Issues 是动态工单和进度的唯一状态源。不在聊天、本地
 
 ## 4. 标准工作循环
 
-1. 读 `AGENTS.md` 和本协议。
+1. 读根目录 `AGENTS.md` 入口、`agent/AGENTS.md` 和本协议。
 2. 通过 `gh issue list --label status:ready` 选取优先级最高的未认领工单。
 3. 读完 Issue 正文和全部评论，核对本地 Git 状态。
 4. 分配自己，将状态改为 `status:in-progress`，留言说明范围和预计产出。
