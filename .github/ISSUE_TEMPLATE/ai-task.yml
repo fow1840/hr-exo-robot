@@ -1,0 +1,38 @@
+name: AI 工单
+description: 可由一个主 AI 认领的实现、诊断、审查或文档任务
+title: "[TASK] "
+labels: ["status:ready"]
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: 目标
+      description: 说明要达成的可观测结果。
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 现象与现有证据
+      description: 提供复现、日志、设备状态和已验证事实；未知项明确写未知。
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 范围
+      description: 列出允许修改和明确不修改的内容。
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 验收标准
+      description: 列出命令、数据阈值、操作员提示、停止条件和需要 donghai 确认的结果。
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: 依赖与风险
+      description: 关联 Issue、设备、权限、安全门禁与回滚条件。

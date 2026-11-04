@@ -1,0 +1,41 @@
+name: 打包/真机部署工单
+description: 用于部署包、目标机安装和真机验收
+title: "[DEPLOY] "
+labels: ["type:deployment", "status:ready"]
+body:
+  - type: textarea
+    id: target
+    attributes:
+      label: 目标设备与环境
+      description: 主机/容器、CPU 架构、OS、ROS、Python、网络和磁盘。不要填密码或 token。
+    validations:
+      required: true
+  - type: textarea
+    id: artifact
+    attributes:
+      label: 部署产物
+      description: 包名、版本/commit、大小、SHA256、MANIFEST 和依赖范围。
+    validations:
+      required: true
+  - type: checkboxes
+    id: gates
+    attributes:
+      label: 部署前门禁
+      options:
+        - label: 已完成目标机只读盘点
+        - label: 已完成本地干净解包和离线构建
+        - label: 已确认备份和回滚路径
+        - label: 已确认急停、使能和命令所有者
+  - type: textarea
+    id: stages
+    attributes:
+      label: 执行阶段
+      description: 分开写上传、校验、安装、构建、无运动启动和真机验收。
+    validations:
+      required: true
+  - type: textarea
+    id: stop
+    attributes:
+      label: 停止条件与回滚
+    validations:
+      required: true
