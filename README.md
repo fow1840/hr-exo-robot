@@ -18,6 +18,19 @@ HR-UP 7-DOF 双臂 + DataMaster 外骨骼遥操作，colcon 工作区。
 
 ## 机器人上编译
 
+### 离线部署(推荐，无需真机联网)
+
+依赖已提前下载在 `deps/`（wheel + deb，平台: x86_64 + Python 3.10 + Humble）：
+
+```bash
+./scripts/install_deps.sh           # 离线装依赖 + 导入自检
+./scripts/install_deps.sh --build   # 或装完顺便编译
+```
+
+依赖变动后，在开发机上重跑 `./scripts/download_deps.sh` 刷新 `deps/`。详见 `deps/README.md`。
+
+### 在线安装
+
 ```bash
 pip3 install -r requirements.txt
 cd HR-EXO-robot && colcon build --symlink-install

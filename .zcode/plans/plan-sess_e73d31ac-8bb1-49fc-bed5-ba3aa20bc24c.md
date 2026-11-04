@@ -1,72 +1,54 @@
-# HR-EXO-robot 外骨骼遥操作框架搭建计划
+# 编写 HR-UP 外骨骼遥操作部署 SOP
 
 ## Context
 
-`/home/dm/下载/HR-EXO-robot` 目前有两块资产，结构松散：
-- `standalone/`：厂商闭源程序（`bin/ROS_2/MessageBridge` 外骨骼→ROS2 话题桥、`bin/Puppetry` 遥操作主程序）
-- `dmdatamaster_retargeting_example-main/`：官方示例工程（zip 解压名），内含 3 个 ROS2 包
+项目框架已搭好（4 个 ROS2 包 + standalone 厂商程序）。用户给出部署流程口述（上机→MessageBridge/Puppetry→venv 装 IK→对齐→离合遥操作），要求结合 Walker S2 pink 部署经验整理成 SOP 文档。Walker S2 参考文档已找到并研读：`/home/dm/文档/walker-s2-teleoperation-delivery/docs/DEPLOY.md`（含预检 4a-4d、jinja2/osqp 坑、末端帧 90° 坑、首动验收顺序）。
 
-目标：重组为**单一标准 colcon 工作区**，新增自研总控包 `hr_exo_teleop`（集成 launch + 参数配置），配启动脚本和文档，形成清晰链路：
+已确认：机器人主机 ROS2 Humble；关节映射未知→SOP 留检查模板；暂不写手套控制流程。
 
-```
-外骨骼(人) → MessageBridge → Puppetry → /target_robot/{L,R}_ee/target → pink IK → /joint_commands → 机械臂
-机械臂 /client_robot/joint_states → FK 正解 → /target_robot/{L,R}_ee/state → 反馈给 Puppetry 闭环
-```
+## 交付物
 
-环境：ROS2 Humble 已装；pinocchio/pink 未装（requirements.txt 已固定版本）。
+1. **新建 `docs/deployment_sop.md`**（唯一新文件），结构如下：
 
-## 最终目录结构
+   - **开头**：一图流拓扑（外骨骼背包 ↔ 机器人主机[部署目标] ↔ 运控板[不部署]）+ URDF 作用 3 句话速览（用户问过，写进文档方便团队）
+   - **阶段一：项目上机 + MessageBridge/Puppetry**
+     - 打包上传（tar 排除 build/install/log → scp → 解压）
+     - 同网段检查（已知默认 IP `192.168.2.240` 来自 Puppetry.yaml/MessageBridge.yaml）
+     - MessageBridge.yaml 必改 2 处：`network.monitoring_ip`=背包实际 IP、`frame_ids.base_frame`→`"base"`（默认 base_link 与 HR-UP 不符）
+     - **Puppetry 必换 URDF**：`urdf_models/robot.urdf` 当前是通用 `dual_arm_robot` 模型，需替换为 HR-UP URDF（复制自 `src/hr_up_7dof_fixed/urdf/`），注意 Puppetry 关节名（left_shoulder_joint 等）与 HR-UP（Joint1~7L）命名完全不同，需验证 Puppetry 对 URDF 关节名的兼容性——此处留现场验证点
+     - 启动验证：cd 到 bin 目录启动（相对路径依赖）+ `ros2 topic` 检查表
+   - **阶段二：IK 部署（venv 隔离，不污染本体环境）**
+     - `python3 -m venv ~/pink_venv` + `pip install -r requirements.txt`
+     - **jinja2 显式安装**（Walker S2 血泪：osqp 硬依赖，缺则离合瞬间崩 `found solvers: []`）
+     - source 顺序：ros humble → venv → workspace；colcon build
+     - 预检四件套（借鉴 Walker S2 4a-4d 改写）：pinocchio/pink import、`qpsolvers.available_solvers==['osqp']`、URDF 可加载且末端 frame 名（Link7/Link7L）正确、sim 闭环验证（teleop_sim 不接真机先跑通）
+   - **阶段三：状态对齐（URDF ↔ 实机，核心）**
+     - 关节映射检查表模板：URDF 关节名 | 驱动实际名 | 单位 | 方向符号 | 零位偏移（现场填写）
+     - 映射不一致时的 3 种处理选项（驱动侧重映射 / 独立 bridge 节点 / 改 URDF）
+     - 姿态对齐：摆 2~3 个已知姿态对比 RViz
+     - 末端位姿对齐：FK 输出 `/target_robot/*_ee/state` 与实机实测对比，**重点防末端帧旋转差**（Walker S2 4b 教训：90° rpy 差）
+     - ik_node 对齐机制说明（`q_commanded←q_measured` 初始化 + clutch 接管瞬间同步，防猛动）
+   - **阶段四：离合遥操作闭环与验收**
+     - 启动前安全确认 4 条（clutch=false、急停、无人、唯一命令源）
+     - 启动顺序 + 离合流程（踏板→`/clutch/*`→ik_node 使能）
+     - 首动验收（照搬 Walker S2 顺序）：单臂低速→啮合瞬间保持不动→平滑跟随→另一臂→双臂
+     - 话题自检表（话题/频率/预期值）
+     - 停止顺序
+   - **附录**：故障排查表（jinja2、TF 时间戳、关节名不匹配、网段不通、base_frame 不一致、命令源冲突）
 
-```
-HR-EXO-robot/                       # colcon 工作区根
-├── README.md                       # 新建：架构图 + 快速开始
-├── requirements.txt                # 移自示例工程（pin-pink==3.5.0, pin==2.7.0 等）
-├── .gitignore                      # 新建：build/ install/ log/ __pycache__/
-├── src/
-│   ├── hr_up_7dof_fixed/           # URDF 描述包（移入 + 由长目录名重命名，包名不变）
-│   ├── robot_fk_adapter/           # 官方 FK 正解包（移入，清理 __pycache__）
-│   ├── robot_ik_retargeting/       # 官方 pink IK 包（移入）
-│   └── hr_exo_teleop/              # ★ 新建：遥操作总控包
-│       ├── package.xml / setup.py / setup.cfg / resource/
-│       ├── config/hr_up.yaml       # HR-UP 双臂参数（ee link=Link7/Link7L, base=base）
-│       ├── launch/teleop_sim.launch.py    # 仿真闭环：FK+IK+dummy_driver+rviz
-│       └── launch/teleop_real.launch.py   # 真机：FK+IK（驱动由外部提供）
-├── standalone/                     # 厂商程序原样保留
-├── scripts/                        # 编号启动脚本
-│   ├── env.sh                      # source ROS Humble + 工作区
-│   ├── 00_install_deps.sh          # pip 安装 requirements.txt
-│   ├── 10_build.sh                 # colcon build
-│   ├── 20_run_messagebridge.sh     # cd standalone/bin/ROS_2 && ./MessageBridge
-│   ├── 21_run_puppetry.sh          # cd standalone/bin/Puppetry && ./Puppetry
-│   └── 30_run_teleop.sh            # ros2 launch hr_exo_teleop (sim|real)
-└── docs/
-    ├── architecture.md             # 数据流图 + 组件职责
-    └── topics.md                   # 全部话题协议表
-```
+2. **修改 `README.md`**：加一行指向 `docs/deployment_sop.md` 的链接
 
-## 实施步骤
+3. **git 提交**（复用已批准的 git 授权）
 
-1. **目录重组**：`dmdatamaster_retargeting_example-main/src/` 下 3 包移入顶层 `src/`；URDF 包目录重命名 `hr_up_7dof_fixed`；删除空壳目录和 `__pycache__`；`requirements.txt` 提升到顶层。检查 URDF 包的 CMakeLists/launch 是否引用旧目录名（按 package.xml 包名 `hr_up_7dof_fixed` 安装，重命名目录不影响安装路径）。
-2. **修复官方包问题**：`robot_ik_retargeting/setup.py` 删除不存在的 `ik_node_tracik` entry point（setup.py 引用了但文件不存在）。
-3. **新建 `hr_exo_teleop` 包**（ament_python）：
-   - `teleop_sim.launch.py`：robot_state_publisher（HR-UP URDF，重映射 `/joint_states`→`/client_robot/joint_states`）+ `joint_to_pose_adapter`（base_frame=`base`，left/right_ee_frame=`Link7L`/`Link7`）+ `ik_node`（urdf 用 `FindPackageShare('hr_up_7dof_fixed')`，ref_link=`base`，target_link_names=`[Link7, Link7L]`）+ `dummy_robot_driver`（500Hz）+ rviz（复用 `hr_up_fixed.rviz`）
-   - `teleop_real.launch.py`：同上去掉 dummy_driver 和 rviz 可选
-4. **启动脚本**：厂商程序必须 `cd` 到各自 bin 目录再启动（它们依赖相对路径 `config/`、`./urdf_models`）；脚本加 `chmod +x`。
-5. **文档**：README（架构 + 启动顺序：装依赖→build→MessageBridge→Puppetry→teleop）、docs/architecture.md、docs/topics.md（含 MessageBridge 的 `/joints` `/ee_poses` `/exoskeleton/joint_states` `/tact_force` 等 + 遥操作链路话题，标注消息类型；特别说明 IK 节点需 `/clutch/left|right` 置 true 才使能）。
-6. **git init** + `.gitignore` + 首次提交（整洁结构作为首版）。
+## 内容来源（全部已核实，不臆造）
 
-## 复用清单（不重写）
-
-- FK 正解：`src/robot_fk_adapter/robot_fk_adapter/joint_to_pose_adapter.py`（TF 查询式 FK）
-- pink IK：`src/robot_ik_retargeting/robot_ik_retargeting/ik_node.py`（含 One Euro 滤波、clutch、软启动、限速）
-- 仿真驱动：`src/robot_fk_adapter/robot_fk_adapter/dummy_robot_driver.py`
-- URDF 双臂模型：`src/hr_up_7dof_fixed/urdf/HR-UP-7DOF-3KG-R-B01382-URDF-1029.urdf`（Joint1-7 右臂→Link7，Joint1L-7L 左臂→Link7L）
+- 话题名/IP/配置项：`standalone/bin/ROS_2/config/MessageBridge.yaml`、`README_CONFIG.md`、`Puppetry/config/Puppetry.yaml`
+- URDF 关节/末端：`src/hr_up_7dof_fixed/urdf/`（已解析）
+- Walker S2 经验：`docs/DEPLOY.md` 第 53 行 jinja2 坑、169-172 行首动验收、53 行外预检、219-223 行换机注意事项
+- 本项目 launch/参数：`src/hr_exo_teleop/`（我编写，内容已核）
 
 ## 验证
 
-1. `bash scripts/00_install_deps.sh` → `python3 -c "import pinocchio, pink"` 成功
-2. `bash scripts/10_build.sh` → 4 个包编译通过
-3. `ros2 launch hr_exo_teleop teleop_sim.launch.py` 后另开终端：
-   - `ros2 topic hz /target_robot/joint_states`（dummy 500Hz）
-   - `ros2 topic echo /target_robot/left_ee/state`（FK 输出随动）
-   - `ros2 topic pub /clutch/right std_msgs/msg/Bool '{data: true}' --once` + 手动 pub 一个 `/target_robot/right_ee/target` PoseStamped → `/target_robot/joint_commands` 出现非零速度，rviz 中右臂跟随 → 链路闭环验证
+- 文档中所有命令在本机可干跑核对（路径、话题名与实际文件一致）
+- 对照 MessageBridge.yaml/Puppetry.yaml 逐项确认"必改项"清单无遗漏
+- git commit 完成
