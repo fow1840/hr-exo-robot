@@ -8,6 +8,10 @@ __pycache__/
 *.pyc
 *.egg-info/
 
+# 手动调试用的虚拟环境(docs/deployment/3：IK的依赖得配置.md 第5节)
+/pink/
+.venv/
+
 # IDE
 .vscode/
 .idea/

@@ -1,13 +1,13 @@
-# 核心算法库（这些在ROS源里可能版本不对，必须用pip安装）
-pin-pink==3.5.0
-pin==2.7.0
-loop-rate-limiters==1.2.0
+# Pink IK 链路 Python 依赖(Walker S2 真机实证配方, 见 docs/deployment/3：IK的依赖得配置.md)
+#
+# Pinocchio 不走 pip: 由 apt 的 ros-humble-pinocchio(4.0.0) 提供, 是硬依赖;
+# pip 的 pin 会遮蔽 ROS 版, 连续求解 native 崩溃(P-016 M3 实证), 故本清单无 pin。
+# pin-pink 由 scripts/install_deps.sh 用 --no-deps 单独安装(阻止 pip 拉入遮蔽版 pin)。
+# numpy 必须锁 1.x: 2.x 与 apt pinocchio 的 ABI 不兼容, import 即段错误(本机实证)。
+numpy==1.26.4
+scipy==1.15.3
 qpsolvers==4.8.2
 proxsuite==0.7.2
 osqp==1.0.5
-
-numpy>=1.26.4
-scipy>=1.15.3
-
-# 其他纯Python工具
-eigenpy==3.5.1
+loop-rate-limiters==1.2.0
+jinja2==3.1.6

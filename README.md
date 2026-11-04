@@ -29,6 +29,9 @@ HR-UP 7-DOF 双臂 + DataMaster 外骨骼遥操作，colcon 工作区。
 
 依赖变动后，在开发机上重跑 `./scripts/download_deps.sh` 刷新 `deps/`。详见 `deps/README.md`。
 
+> 依赖装到**系统 Python**（不要用 venv 跑 `ros2 launch`，节点解释器固定 `/usr/bin/python3`）。
+> 完整说明与 venv 调试用法见 `docs/deployment/3：IK的依赖得配置.md`。
+
 ### 在线安装
 
 ```bash

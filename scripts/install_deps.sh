@@ -49,17 +49,32 @@ if ! $SUDO apt-get install -y --no-download "$APT_DIR"/*.deb; then
     exit 1
 fi
 
-# ---------- 2) 离线安装 Python wheel(requirements.txt 为唯一清单) ----------
+# ---------- 2) 离线安装 Python wheel(requirements.txt + pin-pink --no-deps) ----------
 echo "==> [2/3] 离线安装 Python wheel 包..."
+# 命门: 先 --no-deps 装 pin-pink, 阻止 pip 拉入遮蔽版 pin(P-016 M3 红线)。
+# pinocchio 不由 pip 提供, 走上面第 1 步的 ros-humble-pinocchio deb。
+if ! ls "$PIP_DIR"/pin_pink-*.whl >/dev/null 2>&1; then
+    echo "错误: $PIP_DIR 缺 pin_pink wheel, 请重跑 scripts/download_deps.sh。" >&2
+    exit 1
+fi
+python3 -m pip install --no-index --find-links="$PIP_DIR" --no-deps "$PIP_DIR"/pin_pink-*.whl
+# 再装其余依赖(requirements.txt 刻意不含 pin/pin-pink)
 # --no-index: 完全不访问 PyPI; 权限不足时 pip 会自动降级为 --user 安装
 python3 -m pip install --no-index --find-links="$PIP_DIR" -r "$ROOT/requirements.txt"
 
 # ---------- 3) 导入自检 ----------
 echo "==> [3/3] 导入自检..."
+# pinocchio 由 apt 的 ros-humble-pinocchio 提供, 必须 source ROS 后才能导入
+if [[ -f /opt/ros/humble/setup.bash ]]; then
+    # shellcheck disable=SC1091
+    source /opt/ros/humble/setup.bash
+else
+    echo "警告: 未找到 /opt/ros/humble/setup.bash, pinocchio 导入自检将失败。" >&2
+fi
 python3 - <<'EOF'
 import sys
 mods = ["numpy", "scipy", "pinocchio", "pink", "qpsolvers",
-        "proxsuite", "osqp", "loop_rate_limiters", "eigenpy"]
+        "proxsuite", "osqp", "loop_rate_limiters"]
 failed = []
 for m in mods:
     try:
@@ -68,6 +83,13 @@ for m in mods:
     except Exception as e:
         failed.append(m)
         print(f"  FAIL {m}: {e}", file=sys.stderr)
+# 红线: numpy 必须 1.x(2.x 与 apt pinocchio ABI 不兼容, import 段错误, 本机实证)
+try:
+    import numpy
+    assert numpy.__version__.startswith("1."), f"numpy {numpy.__version__} 不是 1.x, 会段错误"
+except Exception as e:
+    failed.append("numpy-1.x-check")
+    print(f"  FAIL numpy-1.x-check: {e}", file=sys.stderr)
 sys.exit(1 if failed else 0)
 EOF
 echo "依赖安装完成。"

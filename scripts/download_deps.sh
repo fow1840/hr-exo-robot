@@ -19,11 +19,19 @@ echo "==> [1/3] 下载 Python wheel 包(requirements.txt 及其传递依赖)..."
 # 本脚本必须在 Python 3.10 + Linux x86_64 环境下运行，wheel 才能与真机匹配。
 # 额外约束 setuptools<80: osqp 无版本号地依赖 setuptools, 若放任 pip 取最新版(>=80)
 # 会与 colcon-core 要求的 setuptools<80 冲突, 破坏真机上 ament_python 包的编译。
+# 注意: requirements.txt 刻意不含 pin/pin-pink —— pinocchio 走 apt(见下),
+# pip 的 pin 会遮蔽 ROS 版导致连续求解 native 崩溃(P-016 M3 实证)。
 python3 -m pip download --only-binary=:all: -r "$ROOT/requirements.txt" "setuptools<80" -d "$PIP_DIR"
+
+# pin-pink 必须 --no-deps 下载/安装: 否则会拉入 pip 的 pin 遮蔽 ROS pinocchio。
+# 真机安装时 install_deps.sh 同样以 --no-deps 先装本 wheel。
+python3 -m pip download --only-binary=:all: --no-deps "pin-pink==3.5.0" -d "$PIP_DIR"
 
 echo "==> [2/3] 下载 ROS 2 Humble 相关 .deb 包..."
 # 与 src/*/package.xml 中 exec_depend/buildtool/test 对应的 apt 包名。
 # 真机已有 ros-humble-desktop，这里下载的是"确保在"的清单，覆盖补装与离线修复。
+# pinocchio 组是 Pink IK 硬依赖(Walker S2 实证); 其深层系统库(libboost1.74 等)
+# 由 ros-humble-desktop 基线提供, 若目标机缺件 apt --no-download 会明确报缺哪个。
 APT_PKGS=(
     ros-humble-rclpy
     ros-humble-launch
@@ -37,11 +45,22 @@ APT_PKGS=(
     ros-humble-std-msgs
     ros-humble-urdf
     ros-humble-ament-cmake
+    # --- Pink IK 依赖组 ---
+    ros-humble-pinocchio
+    ros-humble-coal
+    ros-humble-eigenpy
+    ros-humble-eigen3-cmake-module
+    ros-humble-ros-environment
+    ros-humble-ros-workspace
+    # --- 工具组 ---
     python3-colcon-common-extensions
     python3-rosdep
     python3-setuptools
     python3-wheel
     python3-pytest
+    # venv 创建依赖, 手动调试场景需要(docs/deployment/3：IK的依赖得配置.md 第5节)
+    python3-venv
+    python3.10-venv
 )
 (cd "$APT_DIR" && apt-get download "${APT_PKGS[@]}")
 
